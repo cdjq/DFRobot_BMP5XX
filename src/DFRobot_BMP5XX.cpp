@@ -1,11 +1,16 @@
 /**
  * @file  DFRobot_BMP5XX.cpp
  * @brief  Define the infrastructure of DFRobot_BMP5XX class
- * @n      This is a pressure and temperature sensor that can be controlled through I2C/SPI/UART ports.
- * @n      BMP (581/585) has functions such as temperature compensation, data oversampling, IIR filtering, etc
- * @n      These features improve the accuracy of data collected by BMP (581/585) sensors.
- * @n      BMP (581/585) also has a FIFO data buffer, greatly improving its availability.
- * @n      Similarly, BMP (581/585) has an interrupt pin that can be used in an energy-efficient manner without using software algorithms.
+ * @n      This is a pressure and temperature sensor that can be controlled
+ * through I2C/SPI/UART ports.
+ * @n      BMP (581/585) has functions such as temperature compensation, data
+ * oversampling, IIR filtering, etc
+ * @n      These features improve the accuracy of data collected by BMP
+ * (581/585) sensors.
+ * @n      BMP (581/585) also has a FIFO data buffer, greatly improving its
+ * availability.
+ * @n      Similarly, BMP (581/585) has an interrupt pin that can be used in an
+ * energy-efficient manner without using software algorithms.
  * @copyright   Copyright (c) 2025 DFRobot Co.Ltd (http://www.dfrobot.com)
  * @license     The MIT License (MIT)
  * @author      yuanlong.yu(yuanlong.yu@dfrobot.com)
@@ -113,7 +118,13 @@ float DFRobot_BMP5XX::getPressure(void) {
   int32_t pressData = ((int32_t)((int8_t)((uint8_t)data[2])) << 16) |
                       ((uint32_t)(data[1]) << 8) | ((uint32_t)data[0]);
   // (MSB LSB XLSB) / 2^6;
-  return (float)pressData / 64;
+  float retData = (float)pressData / 64.0;
+  if (_calibrated) {
+    float seaLevelPressPa =
+        (retData / pow(1.0 - (_sealevelAltitude / 44307.7), 5.255302));
+    retData = retData - seaLevelPressPa + STANDARD_SEA_LEVEL_PRESSURE_PA;
+  }
+  return retData;
 }
 
 float DFRobot_BMP5XX::getAltitude(void) {
@@ -124,8 +135,13 @@ float DFRobot_BMP5XX::getAltitude(void) {
 
   int32_t pressData = ((int32_t)((int8_t)((uint8_t)data[5])) << 16) |
                       ((uint32_t)(data[4]) << 8) | ((uint32_t)data[3]);
-
-  return calculateAltitude((float)tmpData / 65536, (float)pressData / 64);
+  float pressure = (float)pressData / 64.0;
+  if (_calibrated) {
+    float seaLevelPressPa =
+        (pressure / pow(1.0 - (_sealevelAltitude / 44307.7), 5.255302));
+    pressure = pressure - seaLevelPressPa + STANDARD_SEA_LEVEL_PRESSURE_PA;
+  }
+  return calculateAltitude((float)tmpData / 65536, pressure);
 }
 
 uint8_t DFRobot_BMP5XX::configIIR(eIIRFilter_t iir_t, eIIRFilter_t iir_p) {
@@ -184,7 +200,7 @@ uint8_t DFRobot_BMP5XX::getFIFOCount(void) {
 }
 
 DFRobot_BMP5XX::sFIFOData_t DFRobot_BMP5XX::getFIFOData(void) {
-  sFIFOData_t fifoData = { 0,{0},{0}};
+  sFIFOData_t fifoData = {0, {0}, {0}};
   uint16_t regData = 0;
   readHoldingReg(REG_H_FIFO_SEL, &regData, 1);
   uint8_t fifo_frame_sel = BMP5_REG_GET_BITS(regData, FIFO_FRAME_SEL, uint8_t);
@@ -203,7 +219,13 @@ DFRobot_BMP5XX::sFIFOData_t DFRobot_BMP5XX::getFIFOData(void) {
       readInputReg(REG_I_FIFO_DATA, data, 3);
       int32_t pressData = ((int32_t)((int8_t)((uint8_t)data[2])) << 16) |
                           ((uint32_t)(data[1]) << 8) | ((uint32_t)data[0]);
-      fifoData.pressure[i] = (float)pressData / 64;
+      float pressure = (float)pressData / 64.0;
+      if (_calibrated) {
+        float seaLevelPressPa =
+            (pressure / pow(1.0 - (_sealevelAltitude / 44307.7), 5.255302));
+        pressure = pressure - seaLevelPressPa + STANDARD_SEA_LEVEL_PRESSURE_PA;
+      }
+      fifoData.pressure[i] = pressure;
     }
   } else if (fifo_frame_sel == eFIFO_PRESS_TEMP_DATA) {
     for (uint8_t i = 0; i < count; i++) {
@@ -215,7 +237,13 @@ DFRobot_BMP5XX::sFIFOData_t DFRobot_BMP5XX::getFIFOData(void) {
 
       int32_t pressData = ((int32_t)((int8_t)((uint8_t)data[5])) << 16) |
                           ((uint32_t)(data[4]) << 8) | ((uint32_t)data[3]);
-      fifoData.pressure[i] = (float)pressData / 64;
+      float pressure = (float)pressData / 64.0;
+      if (_calibrated) {
+        float seaLevelPressPa =
+            (pressure / pow(1.0 - (_sealevelAltitude / 44307.7), 5.255302));
+        pressure = pressure - seaLevelPressPa + STANDARD_SEA_LEVEL_PRESSURE_PA;
+      }
+      fifoData.pressure[i] = pressure;
     }
   }
   fifoData.len = count;
@@ -274,6 +302,16 @@ uint8_t DFRobot_BMP5XX::setOORPress(uint32_t oor, uint8_t range,
     return setMeasureMode(currMode);
   }
   return RET_CODE_OK;
+}
+
+bool DFRobot_BMP5XX::calibratedAbsoluteDifference(float altitude) {
+  bool ret = false;
+  if (altitude > 0) {
+    ret = true;
+    _calibrated = true;
+    _sealevelAltitude = altitude;
+  }
+  return ret;
 }
 
 uint8_t DFRobot_BMP5XX::setDeepStandbyMode(eDeepEnable_t deepMode) {

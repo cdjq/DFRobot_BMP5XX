@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*
 '''!
-  @file  interrupt_data_drdy.py
+  @file  interrupt_oor.py
   @brief  Get the temperature and pressure data of the BMP58X through interrupts
-  @details  Obtain BMP58X data by using data in  ready interrupt.
+  @details  Obtain BMP58X data by using data in  OOR interrupt.
   @copyright   Copyright (c) 2025 DFRobot Co.Ltd (http://www.dfrobot.com)
   @license     The MIT License (MIT)
   @author      yuanlong.yu(yuanlong.yu@dfrobot.com)
@@ -58,7 +57,23 @@ def setup():
     while not bmp5.begin():
         print("sensor init error,please check connect!")
         time.sleep(1)
-    
+
+    '''!
+      Configure the BMP5 sensor's Out-of-Range (OOR) pressure detection
+      
+      Parameters:
+      1. 94658 - Reference pressure value (in Pa). The sensor uses this as the baseline for OOR detection.
+      2. 50    - Pressure range tolerance (in Pa). The valid pressure range is calculated as:
+                  (Reference - Range) < Actual Pressure < (Reference + Range)
+                  i.e., 94608Pa < Actual Pressure < 94708Pa
+      3. bmp5.eOOR_COUNT_LIMIT_1 - Threshold for consecutive out-of-range readings before triggering an OOR event
+      
+      Functionality:
+      When the sensor detects a pressure value outside the range of 94608-94708Pa for 1 consecutive reading,
+      it triggers an OOR event, which can be monitored via interrupts or polling.
+    '''
+    bmp5.set_oor_press(94658, 50, bmp5.eOOR_COUNT_LIMIT_1)
+
     '''!
       @brief Configures interrupt behavior
       @param int_mode Trigger mode
@@ -93,7 +108,7 @@ def setup():
       @n - eINT_FIFO_THRES:   FIFO threshold interrupt
       @n - eINT_PRESSURE_OOR: Pressure out-of-range interrupt
     '''
-    bmp5.set_int_source(bmp5.eINT_DATA_DRDY)
+    bmp5.set_int_source(bmp5.eINT_PRESSURE_OOR)
 
     '''!
       # Calibrate the sensor according to the current altitude

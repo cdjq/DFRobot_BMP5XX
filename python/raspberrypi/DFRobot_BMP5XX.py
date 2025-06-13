@@ -186,6 +186,8 @@ class DFRobot_BMP5XX(object):
     ODR_IS_VALID_POS = 7
     ODR_IS_VALID_WIDTH = 1
 
+    STANDARD_SEA_LEVEL_PRESSURE_PA = 101325   #///< Standard sea level pressure, unit: pa
+
     eDISABLE = 0
     eENABLE = 1
 
@@ -298,6 +300,8 @@ class DFRobot_BMP5XX(object):
     eINT_DISABLE = 0x00
     eINT_ENABLE = 0x01
 
+
+
     class sFIFOData_t(Structure):
         _fields_ = [
             ("temperature", c_float * 32),
@@ -323,7 +327,8 @@ class DFRobot_BMP5XX(object):
         '''
         self.reset()
         chip_data = self._read_input_reg(self.REG_I_CHIP_ID, 1)
-
+        self._calibrated = False
+        self._sealevelAltitude = 0.0
         if chip_data[0] not in (self.BMP581_CHIP_ID, self.BMP585_CHIP_ID):
             return False
         self._enable_pressure(self.eENABLE)
@@ -467,9 +472,11 @@ class DFRobot_BMP5XX(object):
         '''
         data = self._read_input_reg(self.REG_I_PRESS_DATA_XLSB, 3)
 
-        pressData = self.convert_data(data)
-
-        return pressData / 64.0
+        pressData = self.convert_data(data) / 64.0
+        if self._calibrated:
+            seaLevelPressPa = (pressData / (1.0 - (self._sealevelAltitude / 44307.7)) ** 5.255302)
+            pressData = pressData - seaLevelPressPa + self.STANDARD_SEA_LEVEL_PRESSURE_PA
+        return pressData
 
     def get_altitude(self):
         '''!
@@ -485,6 +492,9 @@ class DFRobot_BMP5XX(object):
 
         temperature = tmpData / 65536.0
         pressure = pressData / 64.0
+        if self._calibrated:
+            seaLevelPressPa = (pressure / (1.0 - (self._sealevelAltitude / 44307.7)) ** 5.255302)
+            pressure = pressure - seaLevelPressPa + self.STANDARD_SEA_LEVEL_PRESSURE_PA
         return self._calculate_altitude(temperature, pressure)
 
     def config_iir(self, iir_t, iir_p):
@@ -624,7 +634,11 @@ class DFRobot_BMP5XX(object):
         if fifo_frame_sel == self.eFIFO_PRESSURE_DATA:
             for i in range(fifo_count):
                 data = self._read_input_reg(self.REG_I_FIFO_DATA, 3)
-                fifo_data.pressure[i] = self.convert_data(data) / 64.0
+                pressure = self.convert_data(data) / 64.0
+                if self._calibrated:
+                    seaLevelPressPa = (pressure / (1.0 - (self._sealevelAltitude / 44307.7)) ** 5.255302)
+                    pressure = pressure - seaLevelPressPa + self.STANDARD_SEA_LEVEL_PRESSURE_PA
+                fifo_data.pressure[i] = pressure
         elif fifo_frame_sel == self.eFIFO_TEMPERATURE_DATA:
             for i in range(fifo_count):
                 data = self._read_input_reg(self.REG_I_FIFO_DATA, 3)
@@ -635,7 +649,11 @@ class DFRobot_BMP5XX(object):
                 tmpData = self.convert_data(data)
                 pressData = self.convert_data(data[3:6])
                 fifo_data.temperature[i] = tmpData / 65536.0
-                fifo_data.pressure[i] = pressData / 64.0
+                pressure = pressData / 64.0
+                if self._calibrated:
+                    seaLevelPressPa = (pressure / (1.0 - (self._sealevelAltitude / 44307.7)) ** 5.255302)
+                    pressure = pressure - seaLevelPressPa + self.STANDARD_SEA_LEVEL_PRESSURE_PA
+                fifo_data.pressure[i] = pressure
         return fifo_data
 
     def config_interrupt(self, int_mode, int_pol, int_od):
@@ -750,6 +768,22 @@ class DFRobot_BMP5XX(object):
         if currMode not in (self.ePOWERMODE_DEEP_STANDBY, self.ePOWERMODE_STANDBY):
             return self.set_measure_mode(currMode)
         return True
+
+    def calibrated_absolute_difference(self, altitude):
+        '''!
+            @fn calibratedAbsoluteDifference
+            @brief use the given current altitude as a reference value, eliminate the absolute difference of subsequent pressure and altitude data
+            @param altitude current altitude
+            @return boolean, indicates whether the reference value is set successfully
+            @retval True indicates the reference value is set successfully
+            @retval False indicates fail to set the reference value
+        '''
+        ret = False
+        if altitude > 0:
+            self._calibrated = True
+            self._sealevelAltitude = altitude
+            ret = True
+        return ret
 
     def _enable_pressure(self, enable):
         '''!

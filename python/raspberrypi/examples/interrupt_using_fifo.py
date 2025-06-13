@@ -32,6 +32,9 @@ mode = "I2C"
 # Using Ture is a latch interrupt, otherwise it is a pulse interrupt
 BMP5_INT_MODE_LATCHED = True
 
+#If there is no need to eliminate the absolute measurement difference, please set it to False
+CALIBRATE_ABSOLUTE_DIFFERENCE = True
+
 if mode == "I2C":
     I2C_BUS    = 0x01
     bmp5 = DFRobot_BMP5XX_I2C(I2C_BUS, DEV_ADDR)
@@ -127,6 +130,15 @@ def setup():
     '''
     bmp5.set_int_source(bmp5.eINT_FIFO_THRES)
 
+    '''!
+      # Calibrate the sensor according to the current altitude
+      # In this example, we use an altitude of 540 meters in Wenjiang District of Chengdu (China). Please change to the local altitude when using it.
+      # If this interface is not called, the measurement data will not eliminate the absolute difference
+      # Notice: This interface is only valid for the first call
+      # If you do not need to eliminate the absolute difference of measurement, please comment the following line
+    '''
+    if CALIBRATE_ABSOLUTE_DIFFERENCE:
+        bmp5.calibrated_absolute_difference(540.0)
     '''!
       @brief Configures sensor power/measurement mode
       @param mode Operation mode

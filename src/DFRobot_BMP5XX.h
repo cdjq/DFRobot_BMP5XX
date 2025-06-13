@@ -193,6 +193,8 @@ private:
 #define ODR_IS_VALID_POS 7
 #define ODR_IS_VALID_WIDTH 1
 
+#define STANDARD_SEA_LEVEL_PRESSURE_PA  101325   ///< Standard sea level pressure, unit: pa
+
   typedef struct {
     uint8_t osr_t_eff;
     uint8_t osr_p_eff;
@@ -596,6 +598,16 @@ public:
    */
   uint8_t setOORPress(uint32_t oor, uint8_t range, eOORCountLimit_t cnt_lim);
 
+  /**
+   * @fn calibratedAbsoluteDifference
+   * @brief use the given current altitude as a reference value, eliminate the absolute difference of subsequent pressure and altitude data
+   * @param altitude current altitude
+   * @return boolean, indicates whether the reference value is set successfully
+   * @retval True indicates the reference value is set successfully
+   * @retval False indicates fail to set the reference value
+   */
+  bool calibratedAbsoluteDifference(float altitude);
+
 private:
   /**
    * @fn enablePressure
@@ -685,6 +697,9 @@ private:
   virtual uint8_t writeHoldingReg(uint8_t reg, void *data, uint8_t len) = 0;
   virtual uint8_t readHoldingReg(uint8_t reg, void *data, uint8_t len) = 0;
   virtual uint8_t readInputReg(uint8_t reg, void *data, uint8_t len) = 0;
+
+  float _sealevelAltitude = 0.0f;
+  bool _calibrated = false;
 };
 
 class DFRobot_BMP5XX_I2C : public DFRobot_BMP5XX {

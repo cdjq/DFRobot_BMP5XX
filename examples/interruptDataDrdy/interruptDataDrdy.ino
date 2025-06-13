@@ -22,6 +22,9 @@
 // Opening the macro below is a latch interrupt, otherwise it is a pulse interrupt
 // #define BMP5_INT_MODE_LATCHED
 
+/** If there is no need to eliminate the absolute measurement error, please annotate the following line */
+#define CALIBRATE_ABSOLUTE_DIFFERENCE
+
 const uint8_t ADDR = 0x47;
 
 #if defined(BMP5_COMM_UART)
@@ -99,6 +102,16 @@ void setup() {
    * @n - eINT_PRESSURE_OOR: Pressure out-of-range interrupt
    */
   bmp5.setIntSource(bmp5.eINT_DATA_DRDY);
+
+  #if defined(CALIBRATE_ABSOLUTE_DIFFERENCE)
+  /**
+   * Calibrate the sensor according to the current altitude
+   * In this example, we use an altitude of 540 meters in Wenjiang District of Chengdu (China). 
+   * Please change to the local altitude when using it.
+   * If this interface is not called, the measurement data will not eliminate the absolute difference.
+   */
+    bmp5.calibratedAbsoluteDifference(540.0);
+  #endif
 
   /**
    * @brief Configures sensor power/measurement mode

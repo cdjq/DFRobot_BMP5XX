@@ -17,6 +17,9 @@
 #define BMP5_COMM_I2C
 // #define BMP5_COMM_SPI
 
+/** If there is no need to eliminate the absolute measurement error, please annotate the following line */
+#define CALIBRATE_ABSOLUTE_DIFFERENCE
+
 const uint8_t ADDR = 0x47;
 
 #if defined(BMP5_COMM_UART)
@@ -52,6 +55,16 @@ void setup() {
     Serial.println("Sensor init fail!");
     delay(1000);
   }
+
+  #if defined(CALIBRATE_ABSOLUTE_DIFFERENCE)
+  /**
+   * Calibrate the sensor according to the current altitude
+   * In this example, we use an altitude of 540 meters in Wenjiang District of Chengdu (China). 
+   * Please change to the local altitude when using it.
+   * If this interface is not called, the measurement data will not eliminate the absolute difference.
+   */
+    bmp5.calibratedAbsoluteDifference(540.0);
+  #endif
   /**
    * @brief Configures sensor power/measurement mode
    * @param mode Operation mode (see: ePowerMode_t)

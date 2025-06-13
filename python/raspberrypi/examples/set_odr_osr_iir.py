@@ -22,6 +22,9 @@ import time
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 from DFRobot_BMP5XX import *
 
+#If there is no need to eliminate the absolute measurement difference, please set it to False
+CALIBRATE_ABSOLUTE_DIFFERENCE = True
+
 DEV_ADDR   = 0x47
 
 # Please choose your communication method below:
@@ -134,6 +137,16 @@ def setup():
       @n - eINT_PRESSURE_OOR: Pressure out-of-range interrupt
     '''
     bmp5.set_int_source(bmp5.eINT_DATA_DRDY)
+
+    '''!
+      # Calibrate the sensor according to the current altitude
+      # In this example, we use an altitude of 540 meters in Wenjiang District of Chengdu (China). Please change to the local altitude when using it.
+      # If this interface is not called, the measurement data will not eliminate the absolute difference
+      # Notice: This interface is only valid for the first call
+      # If you do not need to eliminate the absolute difference of measurement, please comment the following line
+    '''
+    if CALIBRATE_ABSOLUTE_DIFFERENCE:
+        bmp5.calibrated_absolute_difference(540.0)
 
     '''!
       @brief Configures sensor power/measurement mode
